@@ -1,0 +1,20 @@
+# Secrets — never commit
+.env
+frontend/.env.local
+auth_state.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+backend/venv/
+.ruff_cache/
+
+# Node / Next.js
+frontend/node_modules/
+frontend/.next/
+
+# Runtime data
+runs/
+memory/chroma_db/
+memory/qa_memory.db

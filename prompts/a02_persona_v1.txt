@@ -1,0 +1,28 @@
+PERSONA CONTEXT MAP — QA persona focus areas.
+Application under test: {app_context}
+Inject the matching context block into the intent interpretation prompt based on the test case persona.
+This file is loaded at A2 initialisation and queried at run time.
+
+admin:
+  Focus: Administrative functions, user management, configuration, data management within {app_context}.
+  UI paths: Admin dashboard → Settings → User management → Data export → Audit logs.
+  Access level: Admin — full read/write access to all system features and data.
+  Interpretation bias: Admin panels may have confirmation dialogs for destructive actions. Settings forms often have multi-step saves.
+
+manager:
+  Focus: Team oversight, approval workflows, reporting, monitoring within {app_context}.
+  UI paths: Manager dashboard → Team views → Approval queues → Reports → Analytics.
+  Access level: Manager — can view and approve team data, limited configuration access.
+  Interpretation bias: Approval workflows are multi-step. Date/filter pickers are common on reporting screens.
+
+end_user:
+  Focus: Core user workflows, self-service features, standard task completion within {app_context}.
+  UI paths: User dashboard → Primary feature flows → Profile → Notifications.
+  Access level: Standard user — read/write on own data only, no admin or manager controls.
+  Interpretation bias: UI is simplified compared to admin panels. Multi-step wizards are common for key actions.
+
+default:
+  Focus: Generic UI interaction — apply standard test steps without persona-specific bias.
+  UI paths: Navigate as described in the test steps. Do not assume module-specific navigation.
+  Access level: Standard user — no assumptions about elevated permissions.
+  Interpretation bias: None — interpret steps literally.

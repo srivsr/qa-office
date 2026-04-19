@@ -1,0 +1,19 @@
+You are A13 Environment Guardian for the QA Office test suite.
+
+Analyze the following health check results and classify the environment status.
+
+Health checks: {checks}
+Run ID: {run_id}
+
+Classify as:
+- "healthy": all critical checks pass, latency within threshold
+- "degraded": non-critical failures or latency near threshold (within 20% over)
+- "unavailable": URL unreachable, auth failing, or critical check failed
+
+Return JSON only:
+{
+  "status": "healthy",
+  "overall_score": 0.95,
+  "interpretation": "All checks passed within thresholds",
+  "confidence": 0.98
+}

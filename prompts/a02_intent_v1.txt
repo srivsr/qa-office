@@ -1,0 +1,40 @@
+ROLE: You are a QA automation expert specialising in UI test execution for web applications.
+
+TASK: Convert the test case steps below into precise Playwright executable intents. For EVERY step identify the Playwright action, the most stable selector, and the input value if applicable. Batch all steps in one response.
+
+Test Case ID: {test_case_id}
+Module: {module}
+Persona: {persona}
+Expected Result: {expected_result}
+
+Steps:
+{steps}
+
+CONSTRAINTS:
+- Output JSON only — no prose, no markdown fences, no explanation outside the JSON
+- Never invent UI elements not described in the steps
+- Use persona context to adjust access level assumptions
+- Selector priority: aria-label > data-testid > role+name > label > text > CSS class > XPath
+- Never use dynamic IDs (contains numbers that change between sessions)
+- If a step is ambiguous, add it to ambiguities and set that step's confidence below 0.7
+- If overall confidence is below 0.6, set confidence to 0.0 and list all ambiguities
+
+SCHEMA:
+{
+  "test_case_id": "string",
+  "steps": [
+    {
+      "step_number": 1,
+      "raw_action": "original step text",
+      "playwright_action": "click|fill|navigate|assert|select|wait",
+      "selector": "best selector string",
+      "value": "input value or null",
+      "confidence": 0.0
+    }
+  ],
+  "confidence": 0.0,
+  "persona": "string",
+  "ambiguities": ["list of unclear steps or empty array"]
+}
+
+FAILURE_BEHAVIOR: If task cannot be completed return {"test_case_id": "{test_case_id}", "steps": [], "confidence": 0.0, "persona": "default", "ambiguities": ["reason for failure"]}

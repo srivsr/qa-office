@@ -1,0 +1,31 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8005:8005"
+    env_file: .env
+    environment:
+      - CORS_ORIGINS=http://localhost:3005,http://127.0.0.1:3005
+    volumes:
+      - ./runs:/app/runs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3005:3000"
+    environment:
+      - BACKEND_URL=http://backend:8005
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped

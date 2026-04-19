@@ -1,0 +1,17 @@
+fastapi==0.136.0
+uvicorn[standard]==0.27.0
+python-multipart>=0.0.9
+pydantic==2.13.2
+pydantic-settings>=2.0
+openpyxl==3.1.5
+httpx==0.28.1
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+anyio>=4.0.0
+
+# Pipeline dependencies (agents)
+anthropic==0.96.0
+playwright>=1.40.0
+Pillow>=10.0.0
+python-dotenv>=1.0.0
+openai==1.12.0
