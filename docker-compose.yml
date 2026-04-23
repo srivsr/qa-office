@@ -1,8 +1,8 @@
 services:
   backend:
     build:
-      context: ..
-      dockerfile: qa-office-prod/Dockerfile
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "8005:8005"
     env_file: .env

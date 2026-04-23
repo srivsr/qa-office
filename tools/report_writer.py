@@ -16,9 +16,7 @@ from schemas import ComplianceMetadata, ExecutionResult, RunReport, TestCase
 logger = logging.getLogger(__name__)
 
 # Load qa-os excel_reporter by absolute path to avoid sys.modules collision
-_EXCEL_REPORTER_FILE = (
-    Path(__file__).parents[1] / "qa-os" / "backend" / "app" / "services" / "excel_reporter.py"
-)
+_EXCEL_REPORTER_FILE = Path(__file__).parent / "excel_reporter.py"
 _excel_reporter_mod = None
 
 

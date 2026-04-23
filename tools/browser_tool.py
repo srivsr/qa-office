@@ -14,9 +14,7 @@ logger = logging.getLogger(__name__)
 
 # Load parallel_executor directly by path to avoid the `app` package name
 # collision between qa-office/backend/app/ and qa-os/backend/app/.
-_EXECUTOR_FILE = (
-    Path(__file__).parents[1] / "qa-os" / "backend" / "app" / "services" / "parallel_executor.py"
-)
+_EXECUTOR_FILE = Path(__file__).parent / "parallel_executor.py"
 _execute_tests_v2 = None
 
 
