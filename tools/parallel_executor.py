@@ -263,155 +263,56 @@ async def execute_tests_v2(
     max_workers: int = 4,
     auth_config: Dict[str, Any] = None,
     progress_callback: Callable = None,
-    execution_mode: str = "auto",  # auto | scriptless | scripted | page_check
-    screenshot_dir: str = None,  # if set, save PNGs here instead of test_results/
+    execution_mode: str = "auto",
+    screenshot_dir: str = None,
 ) -> List[Dict[str, Any]]:
-    """
-    Execute tests using subprocess approach for Windows compatibility.
-
-    Args:
-        test_cases: List of test cases
-        app_url: Application URL
-        headless: Run headless browser
-        parallel: Enable parallel execution
-        max_workers: Number of parallel workers (default: 4)
-        auth_config: Authentication configuration
-        progress_callback: Optional callback(completed, total, current_id)
-
-    Returns:
-        List of results
-    """
+    """Execute tests using ParallelTestExecutor (direct Playwright, no subprocess)."""
     if not test_cases:
         return []
 
-    # Use data folder for temp files
-    data_dir = Path(__file__).parent.parent / "data"
-    data_dir.mkdir(exist_ok=True)
+    executable_path = os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH") or None
+    config = ExecutionConfig(
+        app_url=app_url,
+        headless=headless,
+        parallel=parallel,
+        max_workers=max_workers,
+        auth_config=auth_config or {},
+    )
 
-    session_id = uuid.uuid4().hex[:8]
-    input_file = str(data_dir / f"test_input_{session_id}.json")
-    output_file = str(data_dir / f"test_output_{session_id}.json")
+    executor = ParallelTestExecutor(config)
 
-    # Use caller-supplied screenshot_dir when provided (e.g. qa-office/runs/{run_id}/screenshots/)
-    # otherwise fall back to qa-os/test_results/screenshots/{session_id}/
-    if screenshot_dir:
-        screenshot_dir = Path(screenshot_dir)
-    else:
-        test_results_dir = Path(__file__).parent.parent.parent.parent / "test_results"
-        test_results_dir.mkdir(exist_ok=True)
-        screenshot_dir = test_results_dir / "screenshots" / session_id
-    screenshot_dir.mkdir(parents=True, exist_ok=True)
+    # Patch launch to use system chromium if available
+    _orig_execute_all = executor.execute_all
 
-    # Write test cases to input file
-    # Include CLERK_SECRET_KEY for API-based auth (bypasses device verification)
-    # Load .env file explicitly
-    env_file = Path(__file__).parent.parent.parent / ".env"
-    if env_file.exists():
-        from dotenv import load_dotenv
-        load_dotenv(env_file)
-
-    clerk_secret = os.environ.get('CLERK_SECRET_KEY', '')
-    if clerk_secret:
-        print(f"[EXEC] CLERK_SECRET_KEY found: {clerk_secret[:10]}...")
-    else:
-        print(f"[EXEC] WARNING: CLERK_SECRET_KEY not found in environment")
-
-    openai_key = os.environ.get('OPENAI_API_KEY', '')
-
-    # Resolve execution mode
-    if execution_mode == "auto":
-        resolved_mode = "scriptless" if openai_key else "page_check"
-    else:
-        resolved_mode = execution_mode
-
-    scripts_dir = str(test_results_dir / "scripts" / session_id)
-
-    with open(input_file, 'w', encoding='utf-8') as f:
-        json.dump({
-            'test_cases': test_cases,
-            'app_url': app_url,
-            'headless': headless,
-            'parallel': parallel,
-            'max_workers': max_workers,
-            'auth': auth_config or {},
-            'screenshot_dir': str(screenshot_dir),
-            'clerk_secret_key': clerk_secret,
-            'openai_api_key': openai_key,
-            'execution_mode': resolved_mode,
-            'scripts_dir': scripts_dir,
-        }, f)
-
-    # Path to runner script
-    runner_script = Path(__file__).parent / "playwright_runner.py"
-
-    try:
-        python_exe = sys.executable
-        logger.info(f"[EXEC] Starting Playwright subprocess: {len(test_cases)} tests")
-        logger.info(f"[EXEC] Script: {runner_script}")
-        _auth = auth_config or {}
-        logger.info("[EXEC] Auth config: type=%s, email=%s", _auth.get("auth_type", "none"), _auth.get("email", ""))
-        print(f"[EXEC] Starting Playwright subprocess: {len(test_cases)} tests")
-
-        # Run subprocess in thread pool. Use get_running_loop() (get_event_loop() is
-        # deprecated in 3.10+ and returns wrong loop inside a running coroutine).
-        # Shield the future so a CancelledError on the outer task does not abort the
-        # subprocess mid-run — we still wait for it to finish.
-        loop = asyncio.get_running_loop()
-        future = loop.run_in_executor(
-            None,
-            lambda: subprocess.run(
-                [python_exe, str(runner_script), input_file, output_file],
-                timeout=3600,
-                capture_output=False
-            )
-        )
-        try:
-            result = await asyncio.shield(future)
-        except asyncio.CancelledError:
-            # Outer task was cancelled (e.g. uvicorn --reload). Wait for the
-            # subprocess to finish so the output file is written, then return results.
-            print("[EXEC] CancelledError caught — waiting for subprocess to finish...")
-            result = await future
-
-        print(f"[EXEC] Subprocess return code: {result.returncode}")
-
-        if result.returncode != 0:
-            logger.error(f"[EXEC] Subprocess failed with code {result.returncode}")
-            return [
-                {**tc, "status": "failed", "error_message": f"Subprocess error (code {result.returncode})"}
-                for tc in test_cases
-            ]
-
-        # Read results
-        if not os.path.exists(output_file):
-            logger.error("[EXEC] Output file not found")
-            return [
-                {**tc, "status": "failed", "error_message": "Test output file not created"}
-                for tc in test_cases
-            ]
-
-        with open(output_file, 'r', encoding='utf-8') as f:
-            results = json.load(f)
-
-        logger.info(f"[EXEC] Completed {len(results)} tests")
+    async def _patched_execute_all(tcs, cb=None):
+        from playwright.async_api import async_playwright
+        results = []
+        async with async_playwright() as p:
+            launch_kwargs = {"headless": config.headless}
+            if executable_path:
+                launch_kwargs["executable_path"] = executable_path
+            try:
+                executor._browser = await p.chromium.launch(**launch_kwargs)
+            except Exception as exc:
+                return [
+                    {**tc, "status": "error", "error_message": f"Browser launch failed: {exc}"}
+                    for tc in tcs
+                ]
+            try:
+                if config.parallel:
+                    results = await executor._execute_parallel(tcs, cb)
+                else:
+                    results = await executor._execute_sequential(tcs, cb)
+            finally:
+                await executor._browser.close()
         return results
 
-    except subprocess.TimeoutExpired:
-        logger.error("[EXEC] Subprocess timed out")
+    try:
+        logger.info("[EXEC] Starting direct Playwright execution: %d tests", len(test_cases))
+        return await _patched_execute_all(test_cases, progress_callback)
+    except Exception as exc:
+        logger.error("[EXEC] Execution error: %s", exc)
         return [
-            {**tc, "status": "failed", "error_message": "Test execution timed out (60 min)"}
+            {**tc, "status": "error", "error_message": f"Execution error: {exc}"}
             for tc in test_cases
         ]
-    except Exception as e:
-        logger.error(f"[EXEC] Error: {e}")
-        return [
-            {**tc, "status": "failed", "error_message": f"Execution error: {str(e)}"}
-            for tc in test_cases
-        ]
-    finally:
-        # Cleanup temp files
-        for f in [input_file, output_file]:
-            try:
-                os.unlink(f)
-            except:
-                pass
