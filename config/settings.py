@@ -53,12 +53,15 @@ class Settings(BaseSettings):
     app_auth_type: str = "clerk"
 
     # Per-agent model routing — override in .env for production (sonnet/opus)
-    a2_model: str = "claude-sonnet-4-6"
-    a3_model: str = "claude-sonnet-4-6"
-    a5_model: str = "claude-sonnet-4-6"  # sonnet instead of opus for cost
-    a6_model: str = "claude-sonnet-4-6"
-    a10_model: str = "claude-sonnet-4-6"
-    a11_model: str = "claude-sonnet-4-6"  # sonnet instead of opus for cost
+    a2_model: str = "claude-haiku-4-5-20251001"
+    a3_model: str = "claude-haiku-4-5-20251001"
+    a5_model: str = "claude-haiku-4-5-20251001"
+    a6_model: str = "claude-haiku-4-5-20251001"
+    a10_model: str = "claude-haiku-4-5-20251001"
+    a11_model: str = "claude-haiku-4-5-20251001"
+
+    # A0 Test Generator
+    a0_model: str = "claude-haiku-4-5-20251001"
 
     # Per-agent LLM timeout — A0 needs more time for full SRS generation
     a0_llm_timeout_s: int = 180
@@ -76,30 +79,30 @@ class Settings(BaseSettings):
     a7_timeout_s: int = 300  # 5 minutes
 
     # A11 Opus model for high-risk decisions
-    a11_opus_model: str = "claude-opus-4-6"
+    a11_opus_model: str = "claude-haiku-4-5-20251001"
 
     # A12 Data Seeder
-    a12_model: str = "claude-sonnet-4-6"
+    a12_model: str = "claude-haiku-4-5-20251001"
     a12_max_tokens: int = 1024
 
     # A13 Environment Guardian
-    a13_model: str = "claude-sonnet-4-6"
+    a13_model: str = "claude-haiku-4-5-20251001"
     a13_max_tokens: int = 1024
 
     # A10 Planner
-    a10_model: str = "claude-sonnet-4-6"
+    a10_model: str = "claude-haiku-4-5-20251001"
     a10_max_tokens: int = 2048
     a10_reflection_max_tokens: int = 1024
     a10_reflection_ttl_days: int = 90
 
     # A14 POM Builder
-    a14_model: str = "claude-sonnet-4-6"
+    a14_model: str = "claude-haiku-4-5-20251001"
     a14_max_tokens: int = 4096
     a14_pom_ttl_days: int = 7
     a14_rebuild_threshold: float = 0.20  # rebuild POM if A6 repair rate > 20%
 
     # A15 Script Reviewer
-    a15_model: str = "claude-sonnet-4-6"
+    a15_model: str = "claude-haiku-4-5-20251001"
     a15_max_tokens: int = 1024
     a15_assertion_penalty: float = 0.15  # confidence penalty per unverified assertion
 

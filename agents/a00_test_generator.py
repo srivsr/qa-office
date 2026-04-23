@@ -41,7 +41,7 @@ class A0TestGenerator:
 
     def __init__(self, settings=None) -> None:
         self._settings = settings or default_settings
-        self._llm = LLMClient(model=self._settings.a2_model, settings=self._settings)
+        self._llm = LLMClient(model=self._settings.a0_model, settings=self._settings)
         self.prompt_template = (_PROMPTS_DIR / "a00_generator_v1.txt").read_text(encoding="utf-8")
         self.prompt_version = "a00_generator_v1"
 
