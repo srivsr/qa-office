@@ -90,12 +90,16 @@ async def execute_with_retry(
     Retries only for transient failures — not validation/auth errors.
     execution_mode: page_check | scriptless | scripted (default from settings)
     """
+    def _safe_raw(raw_list: list) -> dict:
+        raw = raw_list[0] if raw_list else None
+        return raw if isinstance(raw, dict) else {"status": "error", "error_message": "No result returned from browser"}
+
     raw_list = await browser.execute(
         [to_browser_dict(tc)], app_url,
         execution_mode=execution_mode,
         openai_api_key=openai_api_key,
     )
-    result = to_execution_result(tc, raw_list[0], run_id)
+    result = to_execution_result(tc, _safe_raw(raw_list), run_id)
 
     if result.status in ("failed", "error"):
         for attempt in range(1, settings.max_retries + 1):
@@ -113,7 +117,7 @@ async def execute_with_retry(
                 execution_mode=execution_mode,
                 openai_api_key=openai_api_key,
             )
-            result = to_execution_result(tc, raw_list[0], run_id, retry_count=attempt)
+            result = to_execution_result(tc, _safe_raw(raw_list), run_id, retry_count=attempt)
             if result.status == "passed":
                 logger.info("%s recovered on retry %d", tc.id, attempt)
                 return result
