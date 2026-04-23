@@ -48,15 +48,8 @@ def classify_health(
     run_id: str,
 ) -> HealthStatus:
     """Classify overall environment health from check results."""
-    critical_failed = any(c.name == "url_reachable" and not c.passed for c in checks)
-    if critical_failed:
-        return HealthStatus(
-            run_id=run_id,
-            status="unavailable",
-            checks=checks,
-            overall_score=0.0,
-            error_message="Critical check failed: URL unreachable",
-        )
+    # URL unreachable is a warning, not a blocker — Docker networking differences
+    # between environments mean the check is unreliable as a hard gate
 
     failed = [c for c in checks if not c.passed]
     if failed:
