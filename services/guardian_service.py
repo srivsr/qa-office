@@ -5,6 +5,7 @@ LLM used only for anomaly interpretation when checks are inconclusive.
 """
 
 import logging
+import ssl
 import time
 from typing import Any, List, Tuple
 from urllib.request import urlopen
@@ -79,9 +80,28 @@ def _check_url(url: str) -> Tuple[HealthCheck, int]:
     """Probe a URL. Returns (HealthCheck, latency_ms)."""
     t0 = time.time()
     try:
-        urlopen(url, timeout=5)  # noqa: S310
+        ctx = ssl.create_default_context()
+        try:
+            import certifi
+            ctx.load_verify_locations(certifi.where())
+        except ImportError:
+            pass
+        urlopen(url, timeout=5, context=ctx)  # noqa: S310
         ms = int((time.time() - t0) * 1000)
         return HealthCheck(name="url_reachable", passed=True, detail=f"{ms}ms"), ms
+    except ssl.SSLError:
+        # Retry without verification as last resort
+        t0 = time.time()
+        try:
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            urlopen(url, timeout=5, context=ctx)  # noqa: S310
+            ms = int((time.time() - t0) * 1000)
+            return HealthCheck(name="url_reachable", passed=True, detail=f"{ms}ms (ssl-unverified)"), ms
+        except Exception as exc2:
+            ms = int((time.time() - t0) * 1000)
+            return HealthCheck(name="url_reachable", passed=False, detail=str(exc2)), ms
     except Exception as exc:
         ms = int((time.time() - t0) * 1000)
         return HealthCheck(name="url_reachable", passed=False, detail=str(exc)), ms
