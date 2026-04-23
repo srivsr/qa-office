@@ -348,7 +348,8 @@ async def execute_tests_v2(
         python_exe = sys.executable
         logger.info(f"[EXEC] Starting Playwright subprocess: {len(test_cases)} tests")
         logger.info(f"[EXEC] Script: {runner_script}")
-        logger.info("[EXEC] Auth config: type=%s, email=%s", auth_config.get("auth_type", "none"), auth_config.get("email", ""))
+        _auth = auth_config or {}
+        logger.info("[EXEC] Auth config: type=%s, email=%s", _auth.get("auth_type", "none"), _auth.get("email", ""))
         print(f"[EXEC] Starting Playwright subprocess: {len(test_cases)} tests")
 
         # Run subprocess in thread pool. Use get_running_loop() (get_event_loop() is
