@@ -67,7 +67,7 @@ class Settings(BaseSettings):
     a0_llm_timeout_s: int = 180
 
     # Per-agent max_tokens — never unlimited (CLAUDE_ADDITIONS.md)
-    a0_max_tokens: int = 4096  # needs room for 8 full test cases from an SRS
+    a0_max_tokens: int = 8192  # Haiku is more verbose — needs extra room
     a2_max_tokens: int = 2048
     a3_max_tokens: int = 2048
     a5_max_tokens: int = 2048
