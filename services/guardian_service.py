@@ -8,6 +8,7 @@ import logging
 import ssl
 import time
 from typing import Any, List, Tuple
+from urllib.error import HTTPError
 from urllib.request import urlopen
 
 from schemas import EnvConfig, HealthCheck, HealthStatus
@@ -73,28 +74,13 @@ def _check_url(url: str) -> Tuple[HealthCheck, int]:
     """Probe a URL. Returns (HealthCheck, latency_ms)."""
     t0 = time.time()
     try:
-        ctx = ssl.create_default_context()
-        try:
-            import certifi
-            ctx.load_verify_locations(certifi.where())
-        except ImportError:
-            pass
-        urlopen(url, timeout=5, context=ctx)  # noqa: S310
+        urlopen(url, timeout=10)  # noqa: S310
         ms = int((time.time() - t0) * 1000)
         return HealthCheck(name="url_reachable", passed=True, detail=f"{ms}ms"), ms
-    except ssl.SSLError:
-        # Retry without verification as last resort
-        t0 = time.time()
-        try:
-            ctx = ssl.create_default_context()
-            ctx.check_hostname = False
-            ctx.verify_mode = ssl.CERT_NONE
-            urlopen(url, timeout=5, context=ctx)  # noqa: S310
-            ms = int((time.time() - t0) * 1000)
-            return HealthCheck(name="url_reachable", passed=True, detail=f"{ms}ms (ssl-unverified)"), ms
-        except Exception as exc2:
-            ms = int((time.time() - t0) * 1000)
-            return HealthCheck(name="url_reachable", passed=False, detail=str(exc2)), ms
+    except HTTPError as exc:
+        # 4xx/5xx means server responded — URL is reachable, app may be degraded
+        ms = int((time.time() - t0) * 1000)
+        return HealthCheck(name="url_reachable", passed=True, detail=f"HTTP {exc.code} {exc.reason} ({ms}ms)"), ms
     except Exception as exc:
         ms = int((time.time() - t0) * 1000)
         return HealthCheck(name="url_reachable", passed=False, detail=str(exc)), ms
