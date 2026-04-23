@@ -23,7 +23,7 @@ from tools.pom_writer import write_all, write_init
 logger = logging.getLogger(__name__)
 
 _EXECUTOR_FILE = (
-    Path(__file__).parents[2] / "qa-os" / "backend" / "app" / "services" / "parallel_executor.py"
+    Path(__file__).parents[1] / "qa-os" / "backend" / "app" / "services" / "parallel_executor.py"
 )
 
 

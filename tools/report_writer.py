@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 # Load qa-os excel_reporter by absolute path to avoid sys.modules collision
 _EXCEL_REPORTER_FILE = (
-    Path(__file__).parents[2] / "qa-os" / "backend" / "app" / "services" / "excel_reporter.py"
+    Path(__file__).parents[1] / "qa-os" / "backend" / "app" / "services" / "excel_reporter.py"
 )
 _excel_reporter_mod = None
 
