@@ -27,13 +27,14 @@ _EXECUTOR_FILE = Path(__file__).parent.parent / "tools" / "parallel_executor.py"
 
 def _make_browser_page(app_config: AppConfig) -> Any:
     """Create a synchronous Playwright page with optional auth state."""
+    import os
     from playwright.sync_api import sync_playwright
     pw = sync_playwright().start()
-    context_kwargs: dict = {"headless": True}
-    if app_config.auth_state:
-        context_kwargs["storage_state"] = app_config.auth_state
-    browser = pw.chromium.launch(headless=True)
-    context = browser.new_context(**{k: v for k, v in context_kwargs.items() if k != "headless"})
+    executable = os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH") or None
+    launch_kwargs = {"headless": True}
+    if executable:
+        launch_kwargs["executable_path"] = executable
+    browser = pw.chromium.launch(**launch_kwargs)
     if app_config.auth_state:
         context = browser.new_context(storage_state=app_config.auth_state)
     else:
