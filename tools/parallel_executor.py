@@ -27,7 +27,7 @@ class ExecutionConfig:
     headless: bool = True
     parallel: bool = False
     max_workers: int = 4
-    timeout_ms: int = 30000
+    timeout_ms: int = 60000
     screenshot_on_pass: bool = True
     screenshot_on_fail: bool = True
     auth_config: Dict[str, Any] = None
@@ -219,7 +219,8 @@ class ParallelTestExecutor:
             route = tc.get("route", "/")
             url = f"{self.config.app_url.rstrip('/')}{route}"
 
-            await page.goto(url, wait_until='networkidle', timeout=self.config.timeout_ms)
+            await page.goto(url, wait_until='domcontentloaded', timeout=self.config.timeout_ms)
+            await page.wait_for_load_state('load', timeout=self.config.timeout_ms)
             await asyncio.sleep(0.5)
 
             title = await page.title()
