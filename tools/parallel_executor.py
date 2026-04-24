@@ -246,7 +246,12 @@ class ParallelTestExecutor:
 
             await page.goto(url, wait_until='domcontentloaded', timeout=self.config.timeout_ms)
             await page.wait_for_load_state('load', timeout=self.config.timeout_ms)
-            await asyncio.sleep(0.5)
+            # Wait for network to settle so React/Next.js finishes data fetching
+            try:
+                await page.wait_for_load_state('networkidle', timeout=10000)
+            except Exception:
+                pass  # networkidle timeout is non-fatal — page may still be usable
+            await asyncio.sleep(2)
 
             actual_url = page.url
             title = await page.title()
