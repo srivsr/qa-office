@@ -20,6 +20,24 @@ from dataclasses import dataclass
 logger = logging.getLogger(__name__)
 
 
+def _check_text_assertions(steps: list, page_content: str) -> list:
+    """
+    Extract quoted text from Assert/Verify steps and check each against page content.
+    Returns list of failure descriptions (empty = all assertions pass).
+    """
+    import re
+    content_lower = page_content.lower()
+    failed = []
+    for step in steps:
+        if not re.search(r'\b(?:assert|verify|check)\b', step, re.IGNORECASE):
+            continue
+        for m in re.finditer(r"['\"]([^'\"]{3,})['\"]", step):
+            text = m.group(1)
+            if text.lower() not in content_lower:
+                failed.append(f"'{text}' not found")
+    return failed
+
+
 @dataclass
 class ExecutionConfig:
     """Configuration for test execution"""
@@ -223,33 +241,57 @@ class ParallelTestExecutor:
             await page.wait_for_load_state('load', timeout=self.config.timeout_ms)
             await asyncio.sleep(0.5)
 
+            actual_url = page.url
             title = await page.title()
             content = await page.content()
 
-            if len(content) > 500:
-                result["status"] = "passed"
-                result["actual_result"] = f"Page loaded: {title}"
-            else:
+            # Detect redirect away from target domain (e.g. Clerk auth wall, SSO)
+            expected_base = self.config.app_url.rstrip('/')
+            if expected_base not in actual_url:
                 result["status"] = "failed"
-                result["error_message"] = "Page content too short"
+                result["error_message"] = (
+                    f"Redirected away from target — expected {url}, "
+                    f"landed on {actual_url}. Page may require authentication."
+                )
+            else:
+                # Check text assertions extracted from step descriptions
+                failed_assertions = _check_text_assertions(tc.get("steps", []), content)
+                if failed_assertions:
+                    result["status"] = "failed"
+                    result["error_message"] = (
+                        f"Assertions not found on page: "
+                        + "; ".join(failed_assertions[:3])
+                    )
+                elif len(content) > 500:
+                    result["status"] = "passed"
+                    result["actual_result"] = f"Page loaded: {title}"
+                else:
+                    result["status"] = "failed"
+                    result["error_message"] = "Page content too short"
 
-            if (result["status"] == "passed" and self.config.screenshot_on_pass) or \
-               (result["status"] == "failed" and self.config.screenshot_on_fail):
+            # Always capture screenshot so customer can see actual page state
+            try:
                 screenshot_bytes = await page.screenshot(full_page=False)
                 result["screenshot_base64"] = base64.b64encode(screenshot_bytes).decode('utf-8')
+            except Exception:
+                pass
 
         except asyncio.TimeoutError:
             result["status"] = "failed"
             result["error_message"] = f"Timeout loading page after {self.config.timeout_ms}ms"
+            try:
+                screenshot_bytes = await page.screenshot(full_page=False)
+                result["screenshot_base64"] = base64.b64encode(screenshot_bytes).decode('utf-8')
+            except Exception:
+                pass
 
         except Exception as e:
             result["status"] = "failed"
             result["error_message"] = str(e)
-
             try:
                 screenshot_bytes = await page.screenshot(full_page=False)
                 result["screenshot_base64"] = base64.b64encode(screenshot_bytes).decode('utf-8')
-            except:
+            except Exception:
                 pass
 
         result["execution_time_ms"] = int((datetime.now() - start_time).total_seconds() * 1000)
