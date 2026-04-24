@@ -15,13 +15,32 @@ The saved auth_state.json is picked up automatically by all future runs.
 import argparse
 import asyncio
 import json
+import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parents[1]))
-from config.settings import settings
+_QA_ROOT = Path(__file__).parents[1]
+AUTH_STATE_PATH = _QA_ROOT / "auth_state.json"
 
-AUTH_STATE_PATH = Path(__file__).parents[1] / "auth_state.json"
+
+def _read_env() -> dict:
+    """Read .env file without requiring pydantic_settings."""
+    env = {}
+    env_file = _QA_ROOT / ".env"
+    if env_file.exists():
+        for line in env_file.read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, _, v = line.partition("=")
+                env[k.strip()] = v.strip().strip('"').strip("'")
+    # Environment variables override .env
+    for key in ("APP_TEST_URL", "APP_USERNAME", "APP_PASSWORD"):
+        if key in os.environ:
+            env[key] = os.environ[key]
+    return env
+
+
+_env = _read_env()
 
 
 # ── Headed mode (local, interactive) ─────────────────────────────────────────
@@ -29,7 +48,7 @@ AUTH_STATE_PATH = Path(__file__).parents[1] / "auth_state.json"
 def run_headed():
     from playwright.sync_api import sync_playwright
 
-    app_url = settings.app_test_url or "https://evalkit.srivsr.com"
+    app_url = _env.get("APP_TEST_URL") or "https://evalkit.srivsr.com"
     print(f"Opening browser → {app_url}/sign-in")
     print("Log in manually (complete OTP/2FA if prompted), then press Enter here.\n")
 
@@ -54,7 +73,7 @@ def run_headed():
 async def run_headless(email: str, password: str):
     from playwright.async_api import async_playwright
 
-    app_url = settings.app_test_url or "https://evalkit.srivsr.com"
+    app_url = _env.get("APP_TEST_URL") or "https://evalkit.srivsr.com"
     print(f"[headless] Logging in to {app_url}/sign-in as {email}")
 
     async with async_playwright() as p:
@@ -112,9 +131,9 @@ def main():
     parser = argparse.ArgumentParser(description="Save Clerk auth state for QA pipeline")
     parser.add_argument("--headless", action="store_true",
                         help="Run headless (no browser window) — for SSH/CI use")
-    parser.add_argument("--email", default=settings.app_username,
+    parser.add_argument("--email", default=_env.get("APP_USERNAME", ""),
                         help="Login email (defaults to APP_USERNAME in .env)")
-    parser.add_argument("--password", default=settings.app_password,
+    parser.add_argument("--password", default=_env.get("APP_PASSWORD", ""),
                         help="Login password (defaults to APP_PASSWORD in .env)")
     args = parser.parse_args()
 
