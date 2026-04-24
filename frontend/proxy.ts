@@ -1,16 +1,10 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 
-// For local development - make all routes public
-const isPublicRoute = createRouteMatcher(["/(.*)"]);
-
-export default clerkMiddleware(async (auth, request) => {
-  // Skip auth protection for local development
-  // if (!isPublicRoute(request)) {
-  //   await auth.protect();
-  // }
-});
+export function middleware(request: NextRequest) {
+  return NextResponse.next()
+}
 
 export const config = {
-  // Exclude API routes and static files from middleware
-  matcher: ["/((?!.+\\.[\\w]+$|_next|api).*)", "/"],
-};
+  matcher: ['/((?!.+\\.[\\w]+$|_next|api).*)'],
+}

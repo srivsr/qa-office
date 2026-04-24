@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useUser, useClerk, useAuth } from '@clerk/nextjs'
 
 const API_URL = '/api/v1'
 
@@ -18,9 +17,6 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ selectedProject, onSelectProject, onNewChat }: SidebarProps) {
-  const { user, isLoaded } = useUser()
-  const { signOut } = useClerk()
-  const { getToken } = useAuth()
   const [projects, setProjects] = useState<Project[]>([])
   const [showCreate, setShowCreate] = useState(false)
   const [projectName, setProjectName] = useState('')
@@ -29,7 +25,6 @@ export default function Sidebar({ selectedProject, onSelectProject, onNewChat }:
 
   // Load projects - first from localStorage for instant display, then sync with backend
   useEffect(() => {
-    // Load from localStorage immediately for instant display
     const saved = localStorage.getItem('qa-os-projects')
     if (saved) {
       try {
@@ -41,22 +36,14 @@ export default function Sidebar({ selectedProject, onSelectProject, onNewChat }:
         console.error('Failed to parse localStorage projects:', e)
       }
     }
-
-    if (user) {
-      loadProjects()
-    }
-  }, [user])
+    loadProjects()
+  }, [])
 
   const loadProjects = async () => {
     try {
       setLoading(true)
-      const token = await getToken()
-      // removed debug log
       const response = await fetch(`${API_URL}/projects`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+        headers: { 'Content-Type': 'application/json' }
       })
       if (response.ok) {
         const data = await response.json()
@@ -72,7 +59,7 @@ export default function Sidebar({ selectedProject, onSelectProject, onNewChat }:
             if (Array.isArray(savedProjects) && savedProjects.length > 0) {
               setProjects(savedProjects)
               // Try to sync localStorage projects to backend
-              syncLocalProjectsToBackend(savedProjects, token)
+              syncLocalProjectsToBackend(savedProjects)
             }
           }
         }
@@ -89,20 +76,15 @@ export default function Sidebar({ selectedProject, onSelectProject, onNewChat }:
     }
   }
 
-  const syncLocalProjectsToBackend = async (localProjects: Project[], token: string | null) => {
-    // Sync localStorage projects to backend (in case db was reset)
+  const syncLocalProjectsToBackend = async (localProjects: Project[]) => {
     for (const project of localProjects) {
       try {
         await fetch(`${API_URL}/projects`, {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: project.name, domain: project.domain })
         })
-      } catch (e) {
-      }
+      } catch (e) {}
     }
   }
 
@@ -111,13 +93,9 @@ export default function Sidebar({ selectedProject, onSelectProject, onNewChat }:
     if (!projectName.trim()) return
 
     try {
-      const token = await getToken()
       const response = await fetch(`${API_URL}/projects`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: projectName.trim() })
       })
       if (response.ok) {
@@ -155,21 +133,9 @@ export default function Sidebar({ selectedProject, onSelectProject, onNewChat }:
     setProjectName('')
   }
 
-  if (!isLoaded) {
-    return (
-      <div className="w-64 bg-gray-800 p-4 flex flex-col">
-        <h2 className="text-xl font-bold text-white mb-6">QA-OS</h2>
-        <p className="text-gray-400">Loading...</p>
-      </div>
-    )
-  }
-
   return (
     <div className="w-64 bg-gray-800 p-4 flex flex-col">
       <h2 className="text-xl font-bold text-white mb-2">QA-OS</h2>
-      {user && (
-        <p className="text-gray-400 text-sm mb-4 truncate">{user.emailAddresses[0]?.emailAddress}</p>
-      )}
 
       <button
         onClick={() => { onNewChat(); }}
@@ -226,14 +192,6 @@ export default function Sidebar({ selectedProject, onSelectProject, onNewChat }:
         )}
       </div>
 
-      <div className="mt-4 pt-4 border-t border-gray-700">
-        <button
-          onClick={() => signOut()}
-          className="w-full text-left text-gray-400 hover:text-white text-sm"
-        >
-          Sign Out
-        </button>
-      </div>
     </div>
   )
 }
