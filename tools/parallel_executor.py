@@ -148,6 +148,13 @@ class ParallelTestExecutor:
 
         return processed_results
 
+    def _context_kwargs(self) -> dict:
+        """Build new_context() kwargs from auth_config (storage_state or nothing)."""
+        cfg = self.config.auth_config or {}
+        if cfg.get("auth_type") == "storage_state" and cfg.get("storage_state"):
+            return {"storage_state": cfg["storage_state"]}
+        return {}
+
     async def _execute_with_semaphore(
         self,
         test_case: Dict[str, Any],
@@ -159,7 +166,7 @@ class ParallelTestExecutor:
         async with self._semaphore:
             logger.debug(f"Worker acquired for TC-{index+1}: {test_case.get('id', 'unknown')}")
 
-            context = await self._browser.new_context()
+            context = await self._browser.new_context(**self._context_kwargs())
             page = await context.new_page()
 
             try:
@@ -192,7 +199,7 @@ class ParallelTestExecutor:
 
         results = []
 
-        context = await self._browser.new_context()
+        context = await self._browser.new_context(**self._context_kwargs())
         page = await context.new_page()
 
         try:
