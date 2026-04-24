@@ -53,6 +53,9 @@ class A4Executor:
         pom_result=None,  # POMResult from A14, optional
         execution_mode: Optional[str] = None,
         openai_api_key: Optional[str] = None,
+        auth_email: Optional[str] = None,
+        auth_password: Optional[str] = None,
+        auth_type: Optional[str] = None,
     ) -> AgentResult:
         """
         Execute all test cases synchronously (wraps async loop).
@@ -83,7 +86,7 @@ class A4Executor:
         )
         t0 = time.time()
 
-        results = asyncio.run(self._execute_all(test_cases, app_url, run_id, execution_mode, openai_api_key))
+        results = asyncio.run(self._execute_all(test_cases, app_url, run_id, execution_mode, openai_api_key, auth_email, auth_password, auth_type))
         ms = int((time.time() - t0) * 1000)
         passed = sum(1 for r in results if r.status == "passed")
 
@@ -118,13 +121,17 @@ class A4Executor:
         )
 
     async def _execute_all(self, test_cases, app_url, run_id,
-                           execution_mode=None, openai_api_key=None):
+                           execution_mode=None, openai_api_key=None,
+                           auth_email=None, auth_password=None, auth_type=None):
         results = []
         for tc in test_cases:
             r = await execution_service.execute_with_retry(
                 tc, app_url, run_id, self._settings, self._browser,
                 execution_mode=execution_mode,
                 openai_api_key=openai_api_key,
+                auth_email=auth_email,
+                auth_password=auth_password,
+                auth_type=auth_type,
             )
             results.append(r)
         return results

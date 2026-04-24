@@ -83,6 +83,10 @@ def _run_pipeline(run_id: str, params: Dict[str, Any]) -> None:
             output_dir=output_dir,
             execution_mode=params.get("execution_mode", "page_check"),
             openai_api_key=params.get("openai_api_key", ""),
+            auth_enabled=params.get("auth_enabled", False),
+            auth_email=params.get("auth_email") or "",
+            auth_password=params.get("auth_password") or "",
+            auth_type=params.get("auth_type", "clerk"),
         )
         result = A11QADirector(agents={"A7": reviewer}).run(
             mission, run_id=run_id, stage_cb=_on_stage

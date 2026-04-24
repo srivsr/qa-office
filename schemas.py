@@ -243,6 +243,11 @@ class QAMission(BaseModel):
     execution_mode: str = "page_check"  # page_check | scriptless | scripted
     openai_api_key: str = ""            # required for scriptless / scripted
     pom_config: Optional[Dict[str, Any]] = None  # {page_urls, auth_state} for A14
+    # Customer-provided auth — used when no auth_state.json is present
+    auth_enabled: bool = False
+    auth_email: str = ""
+    auth_password: str = ""
+    auth_type: str = "clerk"  # clerk | basic | none
 
 
 class MissionResult(BaseModel):

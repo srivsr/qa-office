@@ -101,6 +101,9 @@ async def execute_with_retry(
     browser: BrowserTool,
     execution_mode: Optional[str] = None,
     openai_api_key: Optional[str] = None,
+    auth_email: Optional[str] = None,
+    auth_password: Optional[str] = None,
+    auth_type: Optional[str] = None,
 ) -> ExecutionResult:
     """
     Execute one test case with retry on transient failures (FR2).
@@ -112,10 +115,13 @@ async def execute_with_retry(
         raw = raw_list[0] if raw_list else None
         return raw if isinstance(raw, dict) else {"status": "error", "error_message": "No result returned from browser"}
 
+    _auth = dict(auth_email=auth_email, auth_password=auth_password, auth_type=auth_type)
+
     raw_list = await browser.execute(
         [to_browser_dict(tc)], app_url,
         execution_mode=execution_mode,
         openai_api_key=openai_api_key,
+        **_auth,
     )
     result = to_execution_result(tc, _safe_raw(raw_list), run_id)
 
@@ -134,6 +140,7 @@ async def execute_with_retry(
                 [to_browser_dict(tc)], app_url,
                 execution_mode=execution_mode,
                 openai_api_key=openai_api_key,
+                **_auth,
             )
             result = to_execution_result(tc, _safe_raw(raw_list), run_id, retry_count=attempt)
             if result.status == "passed":

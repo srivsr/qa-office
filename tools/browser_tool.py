@@ -44,6 +44,9 @@ class BrowserTool:
         progress_callback: Optional[Callable] = None,
         execution_mode: Optional[str] = None,
         openai_api_key: Optional[str] = None,
+        auth_email: Optional[str] = None,
+        auth_password: Optional[str] = None,
+        auth_type: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Execute test cases and return raw result dicts.
@@ -80,6 +83,15 @@ class BrowserTool:
                 "enabled": True,
                 "auth_type": "storage_state",
                 "storage_state": state,
+            }
+        elif auth_email and auth_password:
+            # Customer-provided credentials from UI (no saved state file)
+            logger.info("BrowserTool: using inline credentials from mission")
+            auth_config = {
+                "enabled": True,
+                "auth_type": auth_type or "clerk",
+                "email": auth_email,
+                "password": auth_password,
             }
         elif self._settings.app_auth_enabled:
             auth_config = {

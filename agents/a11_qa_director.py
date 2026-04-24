@@ -125,6 +125,9 @@ class A11QADirector:
             pom_result=pom_result,
             execution_mode=mission.execution_mode,
             openai_api_key=mission.openai_api_key,
+            auth_email=mission.auth_email or None,
+            auth_password=mission.auth_password or None,
+            auth_type=mission.auth_type or None,
         )
         if a4_result.status == "error":
             return AgentResult(
