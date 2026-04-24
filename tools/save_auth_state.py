@@ -48,7 +48,9 @@ _env = _read_env()
 def run_headed():
     from playwright.sync_api import sync_playwright
 
-    app_url = _env.get("APP_TEST_URL") or "https://evalkit.srivsr.com"
+    app_url = _env.get("APP_TEST_URL", "").rstrip("/")
+    if not app_url:
+        sys.exit("APP_TEST_URL is not set. Add it to your .env file.")
     print(f"Opening browser → {app_url}/sign-in")
     print("Log in manually (complete OTP/2FA if prompted), then press Enter here.\n")
 
@@ -73,7 +75,9 @@ def run_headed():
 async def run_headless(email: str, password: str):
     from playwright.async_api import async_playwright
 
-    app_url = _env.get("APP_TEST_URL") or "https://evalkit.srivsr.com"
+    app_url = _env.get("APP_TEST_URL", "").rstrip("/")
+    if not app_url:
+        sys.exit("APP_TEST_URL is not set. Add it to your .env file.")
     print(f"[headless] Logging in to {app_url}/sign-in as {email}")
 
     async with async_playwright() as p:
