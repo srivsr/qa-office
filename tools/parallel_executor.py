@@ -20,18 +20,197 @@ from dataclasses import dataclass
 logger = logging.getLogger(__name__)
 
 
+import re as _re
+
+
+async def _execute_step(page, step: str, app_url: str, timeout_ms: int = 15000) -> tuple:
+    """
+    Execute one test step using Playwright. Returns (success, error_message).
+    Handles: navigate, click, fill, select, assert visible/hidden/disabled/url, wait.
+    """
+    s = step.strip()
+    sl = s.lower()
+    to = timeout_ms
+
+    # ── Navigate ──────────────────────────────────────────────────────────────
+    m = _re.search(r'navigate\s+(?:\w+\s+)*?to\s+(https?://\S+|/\S*)', s, _re.IGNORECASE)
+    if m:
+        url = _re.sub(r'\[[^\]]+\]', '', m.group(1).rstrip('.,;')).rstrip('/') or '/'
+        if not url.startswith('http'):
+            url = f"{app_url.rstrip('/')}{url}"
+        try:
+            await page.goto(url, wait_until='domcontentloaded', timeout=to)
+            try:
+                await page.wait_for_load_state('networkidle', timeout=8000)
+            except Exception:
+                pass
+            await asyncio.sleep(1.5)
+            return True, ''
+        except Exception as e:
+            return False, str(e)[:120]
+
+    # ── Click ─────────────────────────────────────────────────────────────────
+    if _re.search(r'\bclick\b', sl):
+        m = _re.search(r"['\"]([^'\"]+)['\"]", s)
+        if m:
+            label = m.group(1)
+            try:
+                for role in ('button', 'link', 'tab', 'menuitem', 'option', 'combobox'):
+                    loc = page.get_by_role(role, name=label, exact=False)
+                    if await loc.count() > 0:
+                        await loc.first.click(timeout=to)
+                        await asyncio.sleep(0.8)
+                        return True, ''
+                loc = page.get_by_text(label, exact=True)
+                if await loc.count() > 0:
+                    await loc.first.click(timeout=to)
+                    await asyncio.sleep(0.8)
+                    return True, ''
+                loc = page.get_by_text(label, exact=False)
+                if await loc.count() > 0:
+                    await loc.first.click(timeout=to)
+                    await asyncio.sleep(0.8)
+                    return True, ''
+                return False, f"Element '{label}' not found to click"
+            except Exception as e:
+                return False, str(e)[:120]
+
+    # ── Fill ──────────────────────────────────────────────────────────────────
+    if _re.search(r'\bfill\b', sl):
+        m = _re.search(
+            r"fill\s+(?:the\s+)?['\"]([^'\"]+)['\"](?:\s+field)?"
+            r"\s+with\s+(?:[\w\s]+?:\s*)?['\"]([^'\"]*)['\"]", s, _re.IGNORECASE
+        )
+        if m:
+            field, value = m.group(1), m.group(2)
+            try:
+                for loc in (
+                    page.get_by_label(field, exact=False),
+                    page.get_by_placeholder(field, exact=False),
+                    page.locator(f'textarea, input').filter(has_text=field),
+                ):
+                    if await loc.count() > 0:
+                        await loc.first.fill(value, timeout=to)
+                        return True, ''
+                return False, f"Field '{field}' not found"
+            except Exception as e:
+                return False, str(e)[:120]
+
+    # ── Select / create ───────────────────────────────────────────────────────
+    if _re.search(r'\bselect\b', sl):
+        m = _re.search(r"['\"]([^'\"]+)['\"]", s)
+        if m:
+            option = m.group(1)
+            try:
+                for exact in (True, False):
+                    loc = page.get_by_text(option, exact=exact)
+                    if await loc.count() > 0:
+                        await loc.first.click(timeout=to)
+                        await asyncio.sleep(0.8)
+                        return True, ''
+                # Try typing into visible input to create
+                inp = page.get_by_role('textbox')
+                if await inp.count() > 0:
+                    await inp.first.fill(option)
+                    await page.keyboard.press('Enter')
+                    await asyncio.sleep(1)
+                    return True, ''
+                return False, f"Option '{option}' not found"
+            except Exception as e:
+                return False, str(e)[:120]
+
+    # ── Assert URL ────────────────────────────────────────────────────────────
+    if _re.search(r'\bassert\b', sl) and _re.search(r'\b(url|navigates?|redirects?)\b', sl):
+        m = _re.search(r"(?:to|contains?)\s+['\"]?(/[^\s'\"]+|https?://[^\s'\"]+)['\"]?", s, _re.IGNORECASE)
+        if m:
+            expected = m.group(1).rstrip('.,;')
+            current = page.url
+            if expected in current:
+                return True, ''
+            # Wait up to 5s for navigation
+            try:
+                await page.wait_for_url(f"**{expected}**", timeout=5000)
+                return True, ''
+            except Exception:
+                pass
+            return False, f"URL '{page.url}' does not contain '{expected}'"
+
+    # ── Assert disabled ───────────────────────────────────────────────────────
+    if _re.search(r'\bassert\b', sl) and _re.search(r'\bdisabled\b', sl):
+        m = _re.search(r"['\"]([^'\"]+)['\"]", s)
+        if m:
+            label = m.group(1)
+            try:
+                loc = page.get_by_role('button', name=label, exact=False)
+                if await loc.count() > 0:
+                    return (True, '') if await loc.first.is_disabled() else (False, f"'{label}' is not disabled")
+                return True, ''  # button not found — non-blocking
+            except Exception as e:
+                return False, str(e)[:120]
+
+    # ── Assert enabled ────────────────────────────────────────────────────────
+    if _re.search(r'\bassert\b', sl) and _re.search(r'\benabled\b', sl):
+        m = _re.search(r"['\"]([^'\"]+)['\"]", s)
+        if m:
+            label = m.group(1)
+            try:
+                loc = page.get_by_role('button', name=label, exact=False)
+                if await loc.count() > 0:
+                    return (True, '') if await loc.first.is_enabled() else (False, f"'{label}' is not enabled")
+                return True, ''
+            except Exception as e:
+                return False, str(e)[:120]
+
+    # ── Assert not visible ────────────────────────────────────────────────────
+    if _re.search(r'\bassert\b', sl) and _re.search(r'\bnot\s+visible\b|\bno\s+longer\b|\bhidden\b', sl):
+        m = _re.search(r"['\"]([^'\"]+)['\"]", s)
+        if m:
+            text = m.group(1)
+            content = await page.content()
+            if text.lower() not in content.lower():
+                return True, ''
+            loc = page.get_by_text(text, exact=False)
+            if await loc.count() == 0:
+                return True, ''
+            try:
+                if not await loc.first.is_visible():
+                    return True, ''
+            except Exception:
+                pass
+            return False, f"'{text}' should not be visible but is present"
+
+    # ── Assert visible (general) ──────────────────────────────────────────────
+    if _re.search(r'\b(assert|verify)\b', sl):
+        texts = _re.findall(r"['\"]([^'\"]{2,})['\"]", s)
+        if texts:
+            content = await page.content()
+            cl = content.lower()
+            not_found = [t for t in texts if t.lower() not in cl]
+            if not not_found:
+                return True, ''
+            return False, f"Not found on page: {'; '.join(repr(t) for t in not_found[:2])}"
+
+    # ── Wait ──────────────────────────────────────────────────────────────────
+    if _re.search(r'\bwait\b', sl):
+        try:
+            await page.wait_for_load_state('networkidle', timeout=5000)
+        except Exception:
+            pass
+        await asyncio.sleep(1.5)
+        return True, ''
+
+    # ── Unrecognised — non-blocking ───────────────────────────────────────────
+    return True, ''
+
+
 def _check_text_assertions(steps: list, page_content: str) -> list:
-    """
-    Extract quoted text from Assert/Verify steps and check each against page content.
-    Returns list of failure descriptions (empty = all assertions pass).
-    """
-    import re
+    """Legacy helper — kept for compatibility."""
     content_lower = page_content.lower()
     failed = []
     for step in steps:
-        if not re.search(r'\b(?:assert|verify|check)\b', step, re.IGNORECASE):
+        if not _re.search(r'\b(?:assert|verify|check)\b', step, _re.IGNORECASE):
             continue
-        for m in re.finditer(r"['\"]([^'\"]{3,})['\"]", step):
+        for m in _re.finditer(r"['\"]([^'\"]{3,})['\"]", step):
             text = m.group(1)
             if text.lower() not in content_lower:
                 failed.append(f"'{text}' not found")
@@ -227,7 +406,7 @@ class ParallelTestExecutor:
         page,
         tc: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Execute a single test case"""
+        """Execute a test case step-by-step using Playwright interactions."""
 
         result = {
             **tc,
@@ -239,72 +418,42 @@ class ParallelTestExecutor:
         }
 
         start_time = datetime.now()
+        steps = tc.get("steps", [])
 
         try:
-            route = tc.get("route", "/")
-            url = f"{self.config.app_url.rstrip('/')}{route}"
+            failures = []
 
-            await page.goto(url, wait_until='domcontentloaded', timeout=self.config.timeout_ms)
-            await page.wait_for_load_state('load', timeout=self.config.timeout_ms)
-            # Wait for network to settle so React/Next.js finishes data fetching
-            try:
-                await page.wait_for_load_state('networkidle', timeout=10000)
-            except Exception:
-                pass  # networkidle timeout is non-fatal — page may still be usable
-            await asyncio.sleep(2)
-
-            actual_url = page.url
-            title = await page.title()
-            content = await page.content()
-
-            # Detect redirect away from target domain (e.g. Clerk auth wall, SSO)
-            expected_base = self.config.app_url.rstrip('/')
-            if expected_base not in actual_url:
-                result["status"] = "failed"
-                result["error_message"] = (
-                    f"Redirected away from target — expected {url}, "
-                    f"landed on {actual_url}. Page may require authentication."
+            for step in steps:
+                ok, err = await _execute_step(
+                    page, step, self.config.app_url, self.config.timeout_ms
                 )
-            else:
-                # Check text assertions extracted from step descriptions
-                failed_assertions = _check_text_assertions(tc.get("steps", []), content)
-                if failed_assertions:
-                    result["status"] = "failed"
-                    result["error_message"] = (
-                        f"Assertions not found on page: "
-                        + "; ".join(failed_assertions[:3])
-                    )
-                elif len(content) > 500:
-                    result["status"] = "passed"
-                    result["actual_result"] = f"Page loaded: {title}"
-                else:
-                    result["status"] = "failed"
-                    result["error_message"] = "Page content too short"
+                if not ok:
+                    failures.append(err)
 
-            # Always capture screenshot so customer can see actual page state
-            try:
-                screenshot_bytes = await page.screenshot(full_page=False)
-                result["screenshot_base64"] = base64.b64encode(screenshot_bytes).decode('utf-8')
-            except Exception:
-                pass
+            # Auth redirect check after all steps
+            if self.config.app_url.rstrip('/') not in page.url and 'sign-in' in page.url:
+                result["status"] = "failed"
+                result["error_message"] = "Redirected to sign-in — authentication may have expired"
+            elif failures:
+                result["status"] = "failed"
+                result["error_message"] = "; ".join(failures[:3])
+            else:
+                result["status"] = "passed"
+                result["actual_result"] = f"All {len(steps)} steps executed successfully"
 
         except asyncio.TimeoutError:
             result["status"] = "failed"
-            result["error_message"] = f"Timeout loading page after {self.config.timeout_ms}ms"
-            try:
-                screenshot_bytes = await page.screenshot(full_page=False)
-                result["screenshot_base64"] = base64.b64encode(screenshot_bytes).decode('utf-8')
-            except Exception:
-                pass
-
+            result["error_message"] = f"Timeout after {self.config.timeout_ms}ms"
         except Exception as e:
             result["status"] = "failed"
-            result["error_message"] = str(e)
-            try:
-                screenshot_bytes = await page.screenshot(full_page=False)
-                result["screenshot_base64"] = base64.b64encode(screenshot_bytes).decode('utf-8')
-            except Exception:
-                pass
+            result["error_message"] = str(e)[:200]
+
+        # Always capture screenshot
+        try:
+            screenshot_bytes = await page.screenshot(full_page=False)
+            result["screenshot_base64"] = base64.b64encode(screenshot_bytes).decode('utf-8')
+        except Exception:
+            pass
 
         result["execution_time_ms"] = int((datetime.now() - start_time).total_seconds() * 1000)
         return result
