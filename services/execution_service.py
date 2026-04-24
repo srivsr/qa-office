@@ -4,12 +4,16 @@ Browser I/O goes through tools/browser_tool.py; this layer handles business rule
 """
 
 import asyncio
+import base64
 import logging
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 from schemas import ExecutionResult, StepResult, TestCase
 from tools.browser_tool import BrowserTool
+
+_QA_ROOT = Path(__file__).parent.parent
 
 logger = logging.getLogger(__name__)
 
@@ -19,12 +23,19 @@ def to_browser_dict(tc: TestCase) -> dict:
     import re
     route = "/"
     for step in tc.steps:
-        m = re.search(r"navigate\s+to\s+(\S+)", step, re.IGNORECASE)
-        if m:
-            url = m.group(1).rstrip(".,;")
+        # Try full URL first (handles "Navigate directly to https://...")
+        m_full = re.search(r"https?://\S+", step)
+        raw_url = m_full.group(0).rstrip(".,;") if m_full else None
+        if not raw_url:
+            # Relative path after "to" or "at" — handles "... at /path/[placeholder]"
+            m_rel = re.search(r"(?:to|at)\s+(/\S*)", step, re.IGNORECASE)
+            raw_url = m_rel.group(1).rstrip(".,;") if m_rel else None
+        if raw_url:
+            # Strip template placeholders like [runId] to avoid broken domains
+            raw_url = re.sub(r"\[[^\]]+\]", "", raw_url).rstrip("/") or "/"
             try:
                 from urllib.parse import urlparse
-                path = urlparse(url).path
+                path = urlparse(raw_url).path
                 if path:
                     route = path
             except Exception:
@@ -58,7 +69,14 @@ def to_execution_result(
     if raw.get("screenshot_path"):
         screenshot_paths.append(raw["screenshot_path"])
     elif raw.get("screenshot_base64"):
-        screenshot_paths.append(f"screenshots/{run_id}/{tc.id}_final.png")
+        shot_dir = _QA_ROOT / "runs" / run_id / "screenshots"
+        shot_dir.mkdir(parents=True, exist_ok=True)
+        shot_path = shot_dir / f"{tc.id}_final.png"
+        try:
+            shot_path.write_bytes(base64.b64decode(raw["screenshot_base64"]))
+        except Exception:
+            pass
+        screenshot_paths.append(str(shot_path))
 
     return ExecutionResult(
         test_case_id=tc.id,
