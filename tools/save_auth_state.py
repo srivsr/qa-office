@@ -4,11 +4,12 @@ Save Clerk auth state to auth_state.json for use by the QA pipeline.
 Two modes:
 
   Headed (local machine — opens a real browser window):
-      python3 tools/save_auth_state.py
+      python3 tools/save_auth_state.py --url https://yourapp.com
 
   Headless (SSH / bash / CI — fills the login form automatically):
-      python3 tools/save_auth_state.py --headless --email you@example.com --password yourpass
+      python3 tools/save_auth_state.py --url https://yourapp.com --headless --email you@example.com --password yourpass
 
+--url overrides APP_TEST_URL in .env. No .env file needed.
 The saved auth_state.json is picked up automatically by all future runs.
 """
 
@@ -133,6 +134,8 @@ def _save(state: dict):
 
 def main():
     parser = argparse.ArgumentParser(description="Save Clerk auth state for QA pipeline")
+    parser.add_argument("--url", default="",
+                        help="Target app URL (overrides APP_TEST_URL in .env)")
     parser.add_argument("--headless", action="store_true",
                         help="Run headless (no browser window) — for SSH/CI use")
     parser.add_argument("--email", default=_env.get("APP_USERNAME", ""),
@@ -140,6 +143,10 @@ def main():
     parser.add_argument("--password", default=_env.get("APP_PASSWORD", ""),
                         help="Login password (defaults to APP_PASSWORD in .env)")
     args = parser.parse_args()
+
+    # --url flag overrides .env
+    if args.url:
+        _env["APP_TEST_URL"] = args.url.rstrip("/")
 
     if args.headless:
         if not args.email or not args.password:
