@@ -10,6 +10,7 @@ services:
       - CORS_ORIGINS=http://localhost:3005,http://127.0.0.1:3005
     volumes:
       - ./runs:/app/runs
+      - ./auth_state.json:/app/auth_state.json:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
