@@ -3,7 +3,8 @@ FROM node:20-alpine
 WORKDIR /app
 
 COPY package.json ./
-RUN npm install
+RUN npm install && \
+    npm uninstall @clerk/nextjs @clerk/clerk-react @clerk/backend @clerk/shared @clerk/types 2>/dev/null || true
 
 COPY . .
 
